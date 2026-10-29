@@ -7,7 +7,9 @@ const notFound = (res: Response, what: string) => res.status(404).json({ error: 
 
 export function createApp(pool: Pool) {
   const app = express();
-  app.use(express.json());
+  app.disable('x-powered-by');
+  // 100 000 символів контенту — до 400 КБ в UTF-8, а типовий ліміт 100 КБ відсікав би кирилицю раніше за валідацію
+  app.use(express.json({ limit: '512kb' }));
 
   // Express 5 передає помилки з async-обробників в error handler сам
   app.post('/posts', async (req, res) => {
@@ -51,11 +53,15 @@ export function createApp(pool: Pool) {
 
   app.use((_req, res) => notFound(res, 'Route'));
 
-  app.use((err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { type?: string; status?: number; expose?: boolean }, _req: Request, res: Response, _next: NextFunction) => {
     if (err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Validation failed', details: [{ field: 'body', message: 'Malformed JSON' }] });
     }
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request body too large' });
+    // інші помилки клієнта від body-parser (наприклад 415 для невідомого charset) — не 500
+    if (err.expose && err.status && err.status >= 400 && err.status < 500) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   });

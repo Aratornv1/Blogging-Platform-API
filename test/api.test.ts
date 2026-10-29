@@ -1,8 +1,14 @@
+import type { RowDataPacket } from 'mysql2/promise';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { config } from '../src/config';
 import { createPool, initDatabase } from '../src/db';
+
+// Тести роблять DELETE FROM posts, тож ніколи не запускаємо їх на робочій базі
+if (config.db.testName === config.db.name) {
+  throw new Error('DB_NAME_TEST must differ from DB_NAME: tests wipe all posts');
+}
 
 // Потрібен запущений MySQL; тести працюють з окремою базою (DB_NAME_TEST)
 const pool = createPool(config.db.testName);
@@ -46,7 +52,7 @@ describe('POST /posts', () => {
   it('reuses existing tags between posts', async () => {
     await api.post('/posts').send(post);
     await api.post('/posts').send({ ...post, title: 'Second' });
-    const [[row]] = await pool.query<any[]>('SELECT COUNT(*) AS n FROM tags');
+    const [[row]] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS n FROM tags');
     expect(row.n).toBe(2);
   });
 });
@@ -132,8 +138,39 @@ describe('DELETE /posts/:id', () => {
     expect(res.text).toBe('');
     expect((await api.get(`/posts/${created.id}`)).status).toBe(404);
     expect((await api.delete(`/posts/${created.id}`)).status).toBe(404);
-    const [links] = await pool.query<any[]>('SELECT * FROM post_tags');
+    const [links] = await pool.query<RowDataPacket[]>('SELECT * FROM post_tags');
     expect(links).toHaveLength(0);
+  });
+});
+
+describe('edge cases found in review', () => {
+  it('keeps tags that differ only by accents or diacritics distinct', async () => {
+    const tags = ['cafe', 'café', 'мий', 'миі', 'кіт', 'кїт'];
+    const res = await api.post('/posts').send({ ...post, tags });
+    expect(res.status).toBe(201);
+    expect(res.body.tags).toHaveLength(tags.length);
+    expect(res.body.tags).toEqual(expect.arrayContaining(tags));
+    expect((await api.get(`/posts/${res.body.id}`)).body.tags).toHaveLength(tags.length);
+  });
+
+  it('accepts content up to the limit even in multi-byte characters', async () => {
+    const ok = await api.post('/posts').send({ ...post, content: 'я'.repeat(100_000) });
+    expect(ok.status).toBe(201);
+    expect(ok.body.content).toHaveLength(100_000);
+    const tooLong = await api.post('/posts').send({ ...post, content: 'я'.repeat(100_001) });
+    expect(tooLong.status).toBe(400);
+  });
+
+  it('returns the client error status for an unsupported charset, not 500', async () => {
+    const res = await api
+      .post('/posts')
+      .set('Content-Type', 'application/json; charset=foo')
+      .send('{}');
+    expect(res.status).toBe(415);
+  });
+
+  it('does not advertise the framework', async () => {
+    expect((await api.get('/posts')).headers['x-powered-by']).toBeUndefined();
   });
 });
 

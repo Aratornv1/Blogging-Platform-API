@@ -109,7 +109,9 @@ export async function createPost(pool: Pool, input: PostInput): Promise<Post> {
       [input.title, input.content, input.category],
     );
     await replaceTags(conn, result.insertId, input.tags);
-    return (await getPost(conn, result.insertId))!;
+    const created = await getPost(conn, result.insertId);
+    if (!created) throw new Error(`Post ${result.insertId} not found right after insert`);
+    return created;
   });
 }
 

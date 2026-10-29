@@ -19,8 +19,8 @@ const postSchema = z.object({
   tags: z
     .array(requiredString('tag', 50), 'tags is required and must be an array of strings')
     .max(20, 'tags must contain at most 20 items')
-    // теги нормалізуємо: нижній регістр без дублікатів (унікальність у БД не залежить від регістру)
-    .transform((tags) => [...new Set(tags.map((t) => t.toLowerCase()))]),
+    // теги нормалізуємо: NFC (é можна записати двома способами), нижній регістр, без дублікатів
+    .transform((tags) => [...new Set(tags.map((t) => t.normalize('NFC').toLowerCase()))]),
 });
 
 export type PostInput = z.infer<typeof postSchema>;

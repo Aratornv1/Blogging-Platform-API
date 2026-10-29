@@ -11,10 +11,15 @@ CREATE TABLE IF NOT EXISTS posts (
   INDEX idx_posts_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- utf8mb4_bin: порівняння точне. У стандартного utf8mb4_0900_ai_ci "café" = "cafe", "кїт" = "кіт", "й" = "и",
+-- і тег мовчки злився б з іншим. Регістр нормалізує застосунок (нижній регістр).
 CREATE TABLE IF NOT EXISTS tags (
   id   INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(50)  NOT NULL UNIQUE
+  name VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Міграція для баз, створених зі старою схемою. Для вже виправленої таблиці нічого не змінює.
+ALTER TABLE tags MODIFY name VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;
 
 CREATE TABLE IF NOT EXISTS post_tags (
   post_id INT UNSIGNED NOT NULL,
