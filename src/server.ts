@@ -1,8 +1,8 @@
 import { createApp } from './app';
 import { config } from './config';
-import { createPool } from './db';
+import { closePool, getPool } from './db';
 
-const pool = createPool();
+const pool = getPool();
 
 // Пул підключається ліниво: без перевірки сервер стартував би й віддавав 500 на кожен запит
 try {
@@ -18,7 +18,7 @@ const server = createApp(pool).listen(config.port, () => {
 });
 
 const shutdown = () => {
-  server.close(() => pool.end().then(() => process.exit(0)));
+  server.close(() => closePool().then(() => process.exit(0)));
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
