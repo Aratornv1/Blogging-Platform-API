@@ -4,15 +4,14 @@ import { config } from './config';
 
 const { host, port, user, password } = config.db;
 const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
-
+//prepare  driver and setup db with schema 
 export function createPool(database: string = config.db.name): Pool {
-  // timezone 'Z': DATETIME читається й пишеться як UTC
   return mysql.createPool({ host, port, user, password, database, timezone: 'Z', connectionLimit: 10 });
-}
+}//create pool for db connect 
 
-// Створює базу (якщо її немає) і таблиці зі schema.sql. Можна запускати повторно.
+
 export async function initDatabase(database: string = config.db.name): Promise<void> {
-  if (!/^\w+$/.test(database)) throw new Error(`Invalid database name: ${database}`);
+  if (!/^\w+$/.test(database)) throw new Error(`Invalid database name: ${database}`);//security check for db name, only letters, numbers and underscore allowed
   const conn = await mysql.createConnection({ host, port, user, password });
   try {
     await conn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4`);
@@ -23,4 +22,4 @@ export async function initDatabase(database: string = config.db.name): Promise<v
   } finally {
     await conn.end();
   }
-}
+}//initialize db with schema, create db if not exists, use db and run schema statements

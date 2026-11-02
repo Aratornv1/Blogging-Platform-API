@@ -1,20 +1,19 @@
 try {
   process.loadEnvFile();
 } catch {
-  // .env необов'язковий: є значення за замовчуванням
-}
+  
+}//connect env if not connected work with default values
 
 const env = process.env;
 const dbName = env.DB_NAME ?? 'blog_api';
-
-// Number('abc') дає NaN, і сервер мовчки стартував би на неправильному порту
+// basic validation for port numbers
 function toPort(name: string, fallback: number): number {
   const port = Number(env[name] ?? fallback);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(`${name} must be a port number from 1 to 65535, got "${env[name]}"`);
   }
   return port;
-}
+}//read port numbers from env and validate them, if not valid throw error
 
 export const config = {
   port: toPort('PORT', 3000),
@@ -26,4 +25,4 @@ export const config = {
     name: dbName,
     testName: env.DB_NAME_TEST ?? `${dbName}_test`,
   },
-};
+};// all settings in one object 

@@ -1,5 +1,3 @@
--- Пости та теги пов'язані зв'язком "багато до багатьох" через post_tags.
--- Час зберігається в UTC. Без крапок з комою всередині коментарів: файл ділиться по ним.
 
 CREATE TABLE IF NOT EXISTS posts (
   id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -11,8 +9,7 @@ CREATE TABLE IF NOT EXISTS posts (
   INDEX idx_posts_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- utf8mb4_bin: порівняння точне. У стандартного utf8mb4_0900_ai_ci "café" = "cafe", "кїт" = "кіт", "й" = "и",
--- і тег мовчки злився б з іншим. Регістр нормалізує застосунок (нижній регістр).
+
 CREATE TABLE IF NOT EXISTS tags (
   id   INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE

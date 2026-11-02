@@ -9,9 +9,9 @@ export interface Post {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
-}
+} // create type for post for code
 
-type Db = Pool | PoolConnection;
+type Db = Pool | PoolConnection; 
 
 interface PostRow extends RowDataPacket {
   id: number;
@@ -20,14 +20,14 @@ interface PostRow extends RowDataPacket {
   category: string;
   created_at: Date;
   updated_at: Date;
-}
+} // create type for post for db
 
 interface PostTagRow extends RowDataPacket {
   post_id: number;
   name: string;
-}
+} // form  line for requsest to database
 
-const POST_COLUMNS = 'id, title, content, category, created_at, updated_at';
+const POST_COLUMNS = 'id, title, content, category, created_at, updated_at'; //select columns from db
 
 async function withTransaction<T>(pool: Pool, fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
   const conn = await pool.getConnection();
@@ -42,9 +42,9 @@ async function withTransaction<T>(pool: Pool, fn: (conn: PoolConnection) => Prom
   } finally {
     conn.release();
   }
-}
+}// wrap function in transaction, if error rollback, if success commit
 
-// Один додатковий запит на всі пости замість запиту на кожен пост
+
 async function attachTags(db: Db, rows: PostRow[]): Promise<Post[]> {
   if (rows.length === 0) return [];
   const [tagRows] = await db.query<PostTagRow[]>(
@@ -53,10 +53,10 @@ async function attachTags(db: Db, rows: PostRow[]): Promise<Post[]> {
       WHERE pt.post_id IN (?)
       ORDER BY t.name`,
     [rows.map((r) => r.id)],
-  );
-  const tagsByPost = new Map<number, string[]>();
+  );// one request connect post_tags and tags tables to get all tags for posts in one request
+  const tagsByPost = new Map<number, string[]>();// create map with post_id as key 
   for (const { post_id, name } of tagRows) {
-    tagsByPost.set(post_id, [...(tagsByPost.get(post_id) ?? []), name]);
+    tagsByPost.set(post_id, [...(tagsByPost.get(post_id) ?? []), name]);// add tags to map for each post_id
   }
   return rows.map((r) => ({
     id: r.id,
@@ -66,12 +66,12 @@ async function attachTags(db: Db, rows: PostRow[]): Promise<Post[]> {
     tags: tagsByPost.get(r.id) ?? [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-  }));
+  }));// transform rows from db to Post type with tags attached
 }
 
-// Замінює теги поста: стара прив'язка видаляється, нові теги створюються за потреби
+
 async function replaceTags(conn: PoolConnection, postId: number, tags: string[]): Promise<void> {
-  await conn.query('DELETE FROM post_tags WHERE post_id = ?', [postId]);
+  await conn.query('DELETE FROM post_tags WHERE post_id = ?', [postId]); 
   if (tags.length === 0) return;
   await conn.query('INSERT IGNORE INTO tags (name) VALUES ?', [tags.map((t) => [t])]);
   const [tagRows] = await conn.query<(RowDataPacket & { id: number })[]>(
@@ -79,9 +79,9 @@ async function replaceTags(conn: PoolConnection, postId: number, tags: string[])
     [tags],
   );
   await conn.query('INSERT INTO post_tags (post_id, tag_id) VALUES ?', [tagRows.map((t) => [postId, t.id])]);
-}
+}// replace tags for post: delete old tags, insert new tags
 
-// Екранує % і _ , щоб користувач шукав їх як звичайні символи
+
 const escapeLike = (term: string) => term.replace(/[\\%_]/g, '\\$&');
 
 export async function listPosts(pool: Pool, term?: string): Promise<Post[]> {
@@ -94,13 +94,13 @@ export async function listPosts(pool: Pool, term?: string): Promise<Post[]> {
   }
   const [rows] = await pool.query<PostRow[]>(`${sql} ORDER BY id`, params);
   return attachTags(pool, rows);
-}
+} // list posts with optional search term, attach tags to each post
 
 export async function getPost(db: Db, id: number): Promise<Post | null> {
   const [rows] = await db.query<PostRow[]>(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?`, [id]);
   const [post] = await attachTags(db, rows);
   return post ?? null;
-}
+}// get single post by id or null
 
 export async function createPost(pool: Pool, input: PostInput): Promise<Post> {
   return withTransaction(pool, async (conn) => {
@@ -112,23 +112,22 @@ export async function createPost(pool: Pool, input: PostInput): Promise<Post> {
     const created = await getPost(conn, result.insertId);
     if (!created) throw new Error(`Post ${result.insertId} not found right after insert`);
     return created;
-  });
+  });// create post in transaction, insert post, replace tags, get created post
 }
 
 export async function updatePost(pool: Pool, id: number, input: PostInput): Promise<Post | null> {
   return withTransaction(pool, async (conn) => {
-    // updated_at ставимо явно: MySQL не змінює його, якщо значення полів не змінилися
     const [result] = await conn.query<ResultSetHeader>(
       'UPDATE posts SET title = ?, content = ?, category = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?',
       [input.title, input.content, input.category, id],
     );
-    if (result.affectedRows === 0) return null;
+    if (result.affectedRows === 0) return null; 
     await replaceTags(conn, id, input.tags);
     return getPost(conn, id);
-  });
+  });// update post in transaction or null 
 }
 
 export async function deletePost(pool: Pool, id: number): Promise<boolean> {
   const [result] = await pool.query<ResultSetHeader>('DELETE FROM posts WHERE id = ?', [id]);
   return result.affectedRows > 0;
-}
+} // delete post by id, return true or false

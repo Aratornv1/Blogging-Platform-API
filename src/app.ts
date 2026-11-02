@@ -8,15 +8,15 @@ const notFound = (res: Response, what: string) => res.status(404).json({ error: 
 export function createApp(pool: Pool) {
   const app = express();
   app.disable('x-powered-by');
-  // 100 000 символів контенту — до 400 КБ в UTF-8, а типовий ліміт 100 КБ відсікав би кирилицю раніше за валідацію
   app.use(express.json({ limit: '512kb' }));
+  //create express app turn on json parsing with limit 512kb
 
-  // Express 5 передає помилки з async-обробників в error handler сам
+  
   app.post('/posts', async (req, res) => {
     const parsed = parsePostInput(req.body);
     if (!parsed.ok) return res.status(400).json({ error: 'Validation failed', details: parsed.errors });
     res.status(201).json(await createPost(pool, parsed.data));
-  });
+  }); //take json check, create post = 400 or 201
 
   app.get('/posts', async (req, res) => {
     const { term } = req.query;
@@ -24,54 +24,54 @@ export function createApp(pool: Pool) {
       return res.status(400).json({ error: 'Validation failed', details: [{ field: 'term', message: 'term must be a single string' }] });
     }
     res.json(await listPosts(pool, term));
-  });
+  }); // return all posts with ?term only if term is string, else 400
 
   app.get('/posts/:id', async (req, res) => {
     const id = parseId(req.params.id);
-    if (id === null) return invalidId(res);
+    if (id === null) return invalidId(res); //<0=400
     const post = await getPost(pool, id);
     if (!post) return notFound(res, 'Post');
     res.json(post);
-  });
+  });// get post by id and check if id is valid, else 400, if not found 404
 
   app.put('/posts/:id', async (req, res) => {
     const id = parseId(req.params.id);
-    if (id === null) return invalidId(res);
+    if (id === null) return invalidId(res); //check id like in GET
     const parsed = parsePostInput(req.body);
     if (!parsed.ok) return res.status(400).json({ error: 'Validation failed', details: parsed.errors });
     const post = await updatePost(pool, id, parsed.data);
     if (!post) return notFound(res, 'Post');
     res.json(post);
-  });
+  });// update post by id, check id and body, else 400, if not found 404
 
   app.delete('/posts/:id', async (req, res) => {
     const id = parseId(req.params.id);
     if (id === null) return invalidId(res);
     if (!(await deletePost(pool, id))) return notFound(res, 'Post');
     res.status(204).end();
-  });
+  });//delete post by id 
 
-  app.use((_req, res) => notFound(res, 'Route'));
+  app.use((_req, res) => notFound(res, 'Route'));// catch-all for unknown routes, return 404
 
   app.use((err: Error & { type?: string; status?: number; expose?: boolean }, _req: Request, res: Response, _next: NextFunction) => {
     if (err.type === 'entity.parse.failed') {
       return res.status(400).json({ error: 'Validation failed', details: [{ field: 'body', message: 'Malformed JSON' }] });
     }
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request body too large' });
-    // інші помилки клієнта від body-parser (наприклад 415 для невідомого charset) — не 500
+    
     if (err.expose && err.status && err.status >= 400 && err.status < 500) {
       return res.status(err.status).json({ error: err.message });
     }
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
-  });
+  }); 
 
   return app;
-}
+}//all errors are handled here, including malformed JSON, too large body, and other errors with status 4xx or 5xx
 
 function invalidId(res: Response) {
   return res.status(400).json({
     error: 'Validation failed',
     details: [{ field: 'id', message: 'id must be a positive integer' }],
   });
-}
+}// helper function to return 400 for invalid id
